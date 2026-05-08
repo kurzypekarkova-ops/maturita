@@ -204,16 +204,14 @@ export default function App() {
 
       setMaterial(combinedText);
       
-      // Language detection
+      // Language detection - more conservative
       const detectLanguage = (text: string) => {
-        const samples = text.slice(0, 2000).toLowerCase();
-        if (samples.match(/\b(the|is|and|you|of|to|in)\b/i)) return 'en-US';
-        if (samples.match(/\b(der|die|das|und|ist|ich|nicht)\b/i)) return 'de-DE';
-        if (samples.match(/\b(le|la|les|est|et|un|une)\b/i)) return 'fr-FR';
-        if (samples.match(/\b(el|la|los|es|y|en|un)\b/i)) return 'es-ES';
-        if (samples.match(/\b(и|в|не|на|я|что|он)\b/i)) return 'ru-RU';
-        if (samples.match(/\b(ako|pre|bol|toto|som)\b/i)) return 'sk-SK';
-        return 'cs-CZ';
+        const samples = text.slice(0, 1000).toLowerCase();
+        // Check for common stop words that are unique to the language
+        if (samples.includes(' the ') && samples.includes(' of ') && samples.includes(' and ')) return 'en-US';
+        if (samples.includes(' der ') && samples.includes(' die ') && samples.includes(' und ')) return 'de-DE';
+        if (samples.includes(' ako ') && samples.includes(' pre ') && samples.includes(' bol ')) return 'sk-SK';
+        return 'cs-CZ'; // Default to Czech for maturita apps
       };
       setExamLang(detectLanguage(combinedText));
       
@@ -285,12 +283,14 @@ export default function App() {
     selectQuestion(random);
   };
 
-  const sendMessage = async () => {
-    if (!input.trim() || isTyping) return;
+  const sendMessage = async (contentOverride?: string, langOverride?: string) => {
+    const finalInput = contentOverride || input;
+    if (!finalInput.trim() || isTyping) return;
 
-    const newMessages: Message[] = [...messages, { role: 'student', content: input }];
+    const finalLang = langOverride || examLang;
+    const newMessages: Message[] = [...messages, { role: 'student', content: finalInput }];
     setMessages(newMessages);
-    setInput('');
+    if (!contentOverride) setInput('');
     setIsTyping(true);
 
     try {
@@ -300,7 +300,7 @@ export default function App() {
       }));
 
       const context = `ZKOUŠENÉ TÉMA: ${selectedQuestion}\n\nCELÝ MATERIÁL:\n${material}`;
-      const response = await askExaminer(context, history);
+      const response = await askExaminer(context, history, finalLang);
       const teacherMessage = { role: 'teacher', content: response || '...' } as const;
       
       const updatedMessages = [...newMessages, teacherMessage];
@@ -309,8 +309,7 @@ export default function App() {
 
       if (response?.includes('📋 Celkové hodnocení')) {
         setStage('EVALUATION');
-        // saveExamResult is handled via the Evaluation screen trigger or automatically here
-      } else if (stage === 'MONOLOGUE' && (input.toLowerCase().includes('vše') || input.toLowerCase().includes('hotovo'))) {
+      } else if (stage === 'MONOLOGUE' && (finalInput.toLowerCase().includes('vše') || finalInput.toLowerCase().includes('hotovo'))) {
         setStage('FOLLOW_UP');
       }
     } catch (err: any) {
@@ -342,7 +341,7 @@ export default function App() {
       }));
 
       const context = `ZKOUŠENÉ TÉMA: ${selectedQuestion}\n\nCELÝ MATERIÁL:\n${material}`;
-      const response = await askExaminer(context, history);
+      const response = await askExaminer(context, history, examLang);
       const teacherMessage = { role: 'teacher', content: response || '...' } as const;
       
       setMessages([...newMessages, teacherMessage]);
@@ -853,8 +852,35 @@ export default function App() {
                       )} />
                       <span className={cn("text-sm", stage === 'EVALUATION' ? "font-bold text-slate-900" : "text-slate-400")}>Fáze 3: Hodnocení</span>
                     </div>
+                    <div className="pt-2 mt-2 border-t border-slate-100">
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-blue-500" />
+                        <span className="text-sm font-bold text-slate-900">
+                          Jazyk: {examLang === 'cs-CZ' ? 'Čeština 🇨🇿' : 
+                                 examLang === 'en-US' ? 'English 🇺🇸' : 
+                                 examLang === 'de-DE' ? 'Deutsch 🇩🇪' : 
+                                 examLang === 'sk-SK' ? 'Slovenčina 🇸🇰' : examLang}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
+
+                {stage !== 'EVALUATION' && (
+                  <div className="bg-slate-900 p-6 rounded-3xl text-white shadow-xl">
+                    <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 mb-4">Potřebujete češtinu?</h3>
+                    <button 
+                      onClick={() => {
+                        setExamLang('cs-CZ');
+                        sendMessage('Mluvte prosím od teď česky.', 'cs-CZ');
+                      }}
+                      className="w-full py-3 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold transition-all mb-2 flex items-center justify-center gap-2"
+                    >
+                      <span>Přepnout na ČEŠTINU</span> 🇨🇿
+                    </button>
+                    <p className="text-[9px] text-white/40 text-center px-1">Pokud AI začne mluvit jiným jazykem (např. podle materiálů), tímto ji přinutíte k češtině.</p>
+                  </div>
+                )}
 
                 <div className="bg-slate-900 text-white p-7 rounded-3xl shadow-2xl relative overflow-hidden group">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-white/10 transition-all" />
@@ -966,7 +992,7 @@ export default function App() {
                         </button>
                         <button 
                           id="send-message-button"
-                          onClick={sendMessage}
+                          onClick={() => sendMessage()}
                           disabled={!input.trim() || isTyping}
                           className="p-3 bg-slate-900 text-white rounded-2xl hover:bg-slate-800 transition-all disabled:opacity-30 shadow-md"
                         >
@@ -994,8 +1020,8 @@ export default function App() {
                         <div className="flex gap-2 ml-auto">
                           <button 
                             onClick={() => {
-                              setInput('Mluvte prosím česky.');
-                              sendMessage();
+                              setExamLang('cs-CZ');
+                              sendMessage('Mluvte prosím česky.', 'cs-CZ');
                             }}
                             className="text-[9px] font-bold uppercase tracking-wider bg-white border border-slate-100 px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:border-slate-300 transition-all"
                           >
@@ -1003,8 +1029,7 @@ export default function App() {
                           </button>
                           <button 
                             onClick={() => {
-                              setInput('Prosím, zopakujte poslední otázku.');
-                              sendMessage();
+                              sendMessage('Prosím, zopakujte poslední otázku.', examLang);
                             }}
                             className="text-[9px] font-bold uppercase tracking-wider bg-white border border-slate-100 px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:border-slate-300 transition-all"
                           >

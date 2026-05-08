@@ -65,27 +65,31 @@ Až usoudíš, že jsi prověřil vše (po cca 6 otázkách po monologu), zkouš
 ---
 **Závěrečné slovo zkoušejícího:** [Povzbuzení a celkový dojem]
 
-# JAZYK (DŮLEŽITÉ)
-- Komunikuj v jazyce, který odpovídá zkoušenému tématu a materiálům.
-- Pokud je materiál v češtině, mluv česky. Pokud je cizojazyčný (např. angličtina), mluv tímto jazykem.
-- **VÝJIMKA**: Pokud tě student výslovně požádá o změnu jazyka (např. "Mluvte na mě česky", "Speak English"), MUSÍŠ okamžitě uposlechnout a pokračovat v jím zvoleném jazyce bez ohledu na jazyk materiálů.
-- Pokud si nejsi jistý, drž se češtiny.
+# JAZYK (ABSOLUTNÍ PRIORITA)
+- Tvým hlavním komunikačním jazykem je EXKLUZIVNĚ jazyk definovaný v PREFERRED_LANGUAGE.
+- Pokud je PREFERRED_LANGUAGE 'cs-CZ', mluv VŽDY ČESKY, i kdyby byly materiály v jiném jazyce (např. vysvětluj anglickou literaturu česky).
+- Pokud je PREFERRED_LANGUAGE 'en-US', mluv VŽDY ANGLICKY.
+- NIKDY neměň jazyk sám od sebe jen proto, že vidíš cizojazyčný text v materiálech.
+- Jazyk změn POUZE tehdy, pokud tě o to student v průběhu konverzace výslovně požádá (např. "přepni do angličtiny").
+- Pokud si nejsi jistý, mluv ČESKY.
 `;
 
 /**
  * Sends a message to the Gemini AI examiner.
  * @param material - The study material provided by the student.
  * @param history - The conversation history.
+ * @param preferredLanguage - The preferred language for the conversation.
  */
 export async function askExaminer(
   material: string,
-  history: { role: 'user' | 'model', parts: { text: string }[] }[]
+  history: { role: 'user' | 'model', parts: { text: string }[] }[],
+  preferredLanguage: string = 'cs-CZ'
 ) {
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: history,
     config: {
-      systemInstruction: `${EXAMINER_SYSTEM_PROMPT}\n\nSTUDENTŮV MATERIÁL PRO TUTO ZKOUŠKU:\n${material}`,
+      systemInstruction: `${EXAMINER_SYSTEM_PROMPT}\n\nPREFERRED_LANGUAGE: ${preferredLanguage}\n\nSTUDENTŮV MATERIÁL PRO TUTO ZKOUŠKU:\n${material}`,
     },
   });
 
