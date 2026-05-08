@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Remix: maturita.ai",
+  "description": "Interaktivní simulátor ústní maturitní zkoušky s AI profesorem, který vás vyzkouší z vašich materiálů.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": []
+}
