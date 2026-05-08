@@ -204,16 +204,8 @@ export default function App() {
 
       setMaterial(combinedText);
       
-      // Language detection - more conservative
-      const detectLanguage = (text: string) => {
-        const samples = text.slice(0, 1000).toLowerCase();
-        // Check for common stop words that are unique to the language
-        if (samples.includes(' the ') && samples.includes(' of ') && samples.includes(' and ')) return 'en-US';
-        if (samples.includes(' der ') && samples.includes(' die ') && samples.includes(' und ')) return 'de-DE';
-        if (samples.includes(' ako ') && samples.includes(' pre ') && samples.includes(' bol ')) return 'sk-SK';
-        return 'cs-CZ'; // Default to Czech for maturita apps
-      };
-      setExamLang(detectLanguage(combinedText));
+      // Always default to Czech for Maturita apps
+      setExamLang('cs-CZ');
       
       // Try to parse questions from the text
       const lines = combinedText.split('\n').map(l => l.trim()).filter(l => l.length > 3);
@@ -259,16 +251,7 @@ export default function App() {
     setStage('MONOLOGUE');
     setTimeLeft(duration * 60);
     
-    let welcomeText = '';
-    if (examLang.startsWith('en')) {
-      welcomeText = `You have drawn the topic: **${q}**. \n\nYou now have the floor for your monologue. I will occasionally interrupt you with 3 follow-up questions during your speech. Then we will move on to the final discussion.`;
-    } else if (examLang.startsWith('de')) {
-      welcomeText = `Sie haben das Thema gewählt: **${q}**. \n\nSie haben nun das Wort für Ihren Monolog. Ich werde Sie zwischendurch mit 3 Ergänzungsfragen unterbrechen. Danach kommen wir zur Abschlussdiskussion.`;
-    } else if (examLang.startsWith('sk')) {
-      welcomeText = `Vylosovali ste si otázku: **${q}**. \n\nTeraz máte slovo k vášmu monológu. V priebehu sa vás budem 3x dopytovať na doplňujúce súvislosti. Potom prejdeme k doplňujúcim otázkam.`;
-    } else {
-      welcomeText = `Vylosovali jste si otázku: **${q}**. \n\nNyní máte slovo k vašemu monologu. V průběhu se vás budu 3x doptávat na doplňující souvislosti. Poté přejdeme k doplňujícím otázkám.`;
-    }
+    const welcomeText = `Vylosovali jste si otázku: **${q}**. \n\nNyní máte slovo k vašemu monologu. V průběhu se vás budu 3x doptávat na doplňující souvislosti. Poté přejdeme k doplňujícím otázkám.`;
 
     setMessages([{ 
       role: 'teacher', 
@@ -324,10 +307,7 @@ export default function App() {
     if (stage !== 'MONOLOGUE') return;
     
     setIsTyping(true);
-    let finishContent = 'TO JE VŠE. Nyní mi položte 3 doplňující otázky z mých materiálů a 3 doplňující otázky nad rámec mých materiálů.';
-    if (examLang.startsWith('en')) finishContent = 'THAT IS ALL. Now please ask me 3 follow-up questions from my materials and 3 questions beyond the scope of my notes.';
-    else if (examLang.startsWith('de')) finishContent = 'DAS IST ALLES. Bitte stellen Sie mir nun 3 Fragen zu meinen Materialien und 3 weiterführende Fragen.';
-    else if (examLang.startsWith('sk')) finishContent = 'TO JE VŠETKO. Teraz mi položte 3 doplňujúce otázky z mojich materiálov a 3 doplňujúce otázky nad rámec mojich materiálov.';
+    const finishContent = 'TO JE VŠE. Nyní mi položte 3 doplňující otázky z mých materiálů a 3 doplňující otázky nad rámec mých materiálů.';
 
     const finishMessage: Message = { role: 'student', content: finishContent };
     const newMessages = [...messages, finishMessage];
@@ -397,13 +377,9 @@ export default function App() {
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     
-    // Use detected exam language, with fallback to per-message heuristic for mixed content
-    if (cleanText.match(/\b(the|is|and|you)\b/i)) utterance.lang = 'en-US';
-    else if (cleanText.match(/\b(der|die|das|und|ist)\b/i)) utterance.lang = 'de-DE';
-    else if (cleanText.match(/\b(le|la|les|est|et)\b/i)) utterance.lang = 'fr-FR';
-    else if (cleanText.match(/\b(el|la|los|es|y)\b/i)) utterance.lang = 'es-ES';
-    else if (cleanText.match(/\b(и|в|не|на|я)\b/i)) utterance.lang = 'ru-RU';
-    else utterance.lang = examLang;
+    // Force Czech voice unless it's clear the whole sentence is in a different language
+    // and the exam language was explicitly set to that language.
+    utterance.lang = examLang;
 
     utterance.onstart = () => setIsAiSpeaking(true);
     utterance.onend = () => {
@@ -708,23 +684,6 @@ export default function App() {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Jazyk zkoušky</label>
-                    <select 
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-200 transition-all bg-slate-50/50 appearance-none cursor-pointer"
-                      value={examLang}
-                      onChange={(e) => setExamLang(e.target.value)}
-                    >
-                      <option value="cs-CZ">Čeština</option>
-                      <option value="en-US">English</option>
-                      <option value="de-DE">Deutsch</option>
-                      <option value="sk-SK">Slovenčina</option>
-                      <option value="fr-FR">Français</option>
-                      <option value="es-ES">Español</option>
-                      <option value="ru-RU">Русский</option>
-                    </select>
-                  </div>
-
                   <button 
                     disabled={!subject}
                     onClick={startSetup}
@@ -856,31 +815,12 @@ export default function App() {
                       <div className="flex items-center gap-3">
                         <div className="w-2 h-2 rounded-full bg-blue-500" />
                         <span className="text-sm font-bold text-slate-900">
-                          Jazyk: {examLang === 'cs-CZ' ? 'Čeština 🇨🇿' : 
-                                 examLang === 'en-US' ? 'English 🇺🇸' : 
-                                 examLang === 'de-DE' ? 'Deutsch 🇩🇪' : 
-                                 examLang === 'sk-SK' ? 'Slovenčina 🇸🇰' : examLang}
+                          Jazyk: Čeština 🇨🇿
                         </span>
                       </div>
                     </div>
                   </div>
                 </div>
-
-                {stage !== 'EVALUATION' && (
-                  <div className="bg-slate-900 p-6 rounded-3xl text-white shadow-xl">
-                    <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 mb-4">Potřebujete češtinu?</h3>
-                    <button 
-                      onClick={() => {
-                        setExamLang('cs-CZ');
-                        sendMessage('Mluvte prosím od teď česky.', 'cs-CZ');
-                      }}
-                      className="w-full py-3 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold transition-all mb-2 flex items-center justify-center gap-2"
-                    >
-                      <span>Přepnout na ČEŠTINU</span> 🇨🇿
-                    </button>
-                    <p className="text-[9px] text-white/40 text-center px-1">Pokud AI začne mluvit jiným jazykem (např. podle materiálů), tímto ji přinutíte k češtině.</p>
-                  </div>
-                )}
 
                 <div className="bg-slate-900 text-white p-7 rounded-3xl shadow-2xl relative overflow-hidden group">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-white/10 transition-all" />
